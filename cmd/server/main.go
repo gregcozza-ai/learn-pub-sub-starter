@@ -1,5 +1,5 @@
 package main
-
+// cmd/server/main.go
 import (
 	"fmt"
 	"os"
