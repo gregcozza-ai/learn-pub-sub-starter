@@ -32,8 +32,9 @@ func handlerMove(gs *gamelogic.GameState, pubCh *amqp.Channel) func(gamelogic.Ar
 			)
 			if err != nil {
 				fmt.Println("Failed to publish war message:", err)
+				return pubsub.NackRequeue
 			}
-			return pubsub.NackRequeue // Requeue move message
+			return pubsub.Ack
 		default:
 			fmt.Println("error: unknown move outcome")
 			return pubsub.NackDiscard 
