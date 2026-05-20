@@ -23,20 +23,21 @@ func main() {
 	}
 	defer conn.Close()
 	fmt.Println("Peril game client connect to RabbitMQ!")
+		
+	username, err := gamelogic.ClientWelcome()
+	if err != nil {
+		log.Fatalf("could not get username: %v", err)
+	}
 	
-	// Create channel for publishing moves
+	gs := gamelogic.NewGameState(username)
+	
+	// Create channel for publishing moves and war messages 
 	pubCh, err := conn.Channel()
 	if err != nil {
 		log.Fatalf("could not create channel for publishing: %v", err)
 	}
 	defer pubCh.Close()
 	
-	username, err := gamelogic.ClientWelcome()
-	if err != nil {
-		log.Fatalf("could not get username: %v", err)
-	}
-	gs := gamelogic.NewGameState(username)
-
 	// Subscribe to pause messages
 	err = pubsub.SubscribeJSON(
 		conn,
@@ -57,10 +58,23 @@ func main() {
 		routing.ArmyMovesPrefix+"."+gs.GetUsername(),
 		routing.ArmyMovesPrefix+".*",
 		pubsub.SimpleQueueTransient,
-		handlerMove(gs),
+		handlerMove(gs, pubCh),
 	)
 	if err != nil {
 		log.Fatalf("could not subscribe to army moves: %v", err)
+	}
+
+	// Subscribe to war messages (durable queue)
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.WarRecognitionsPrefix, // Durable queue name
+		routing.WarRecognitionsPrefix+".*",
+		pubsub.SimpleQueueDurable, // Durable queue
+		handlerWar(gs),
+	)
+	if err != nil {
+		log.Fatalf("could not subscribe to war messages: %v", err)
 	}
 
 	done := make(chan os.Signal, 1)
