@@ -34,13 +34,18 @@ func DeclareAndBind(
 		return nil, amqp.Queue{}, fmt.Errorf("could not create channel: %v", err) 
 	}
 
+	// Configure dead letter exchange
+	args := amqp.Table {
+		"x-dead-letter-exchange": "peril_dlx", // Name of dead letter exchange 
+	}
+
 	queue, err := ch.QueueDeclare(
 		queueName,							// name
 		queueType == SimpleQueueDurable,	// durable
 		queueType != SimpleQueueDurable,	// delete when unused 
 		queueType != SimpleQueueDurable,	// exclusive 
 		false,								// no-wait
-		nil,								// args 
+		args,								// args with dead letter config 
 	)
 	if err != nil {
 		return nil, amqp.Queue{}, fmt.Errorf("could not declare queue: %v", err) 
