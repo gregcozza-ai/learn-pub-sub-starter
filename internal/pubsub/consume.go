@@ -9,6 +9,12 @@ import (
 
 type Acktype int 
 
+const (
+	Ack Acktype = iota
+	NackRequeue
+	NackDiscard
+)
+
 type SimpleQueueType int 
 
 const (
@@ -60,7 +66,7 @@ func SubscribeJSON[T any](
 	queueName,
 	key string,
 	queueType SimpleQueueType,
-	handler func(T),
+	handler func(T) Acktype,
 ) error {
 	ch, _, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
 	if err != nil {
@@ -87,8 +93,22 @@ func SubscribeJSON[T any](
 				fmt.Printf("could not unmarshal message: %v\n", err)
 				continue 
 			}
-			handler(msg)
-			d.Ack(false)
+
+			ackType := handler(msg)
+			switch ackType {
+			case Ack:
+				fmt.Println("ACK: Message processed successfully")
+				d.Ack(false)
+			case NackRequeue:
+				fmt.Println("NACK (requeue): Message needs reprocessing")
+				d.Nack(false, true)
+			case NackDiscard:
+				fmt.Println("NACK (discard): Message discarded")
+				d.Nack(false, false)
+			default:
+				fmt.Println("UNKNOWN ACK: Defaulting to ACK")
+				d.Ack(false)
+			}
 		}
 	}()
 
