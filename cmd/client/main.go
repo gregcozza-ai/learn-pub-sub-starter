@@ -1,4 +1,5 @@
 package main
+
 // cmd/client/main.go
 import (
 	"fmt"
@@ -8,8 +9,8 @@ import (
 	"syscall"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
-	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -28,32 +29,32 @@ func main() {
 		log.Fatalf("could not get username: %v", err)
 	}
 
-	_, queue, err := pubsub.DeclareAndBind(
+	gs := gamelogic.NewGameState(username)
+	
+	err = pubsub.SubscribeJSON(
 		conn,
 		routing.ExchangePerilDirect,
-		routing.PauseKey+"."+username,
+		routing.PauseKey+"."+gs.GetUsername(),
 		routing.PauseKey,
 		pubsub.SimpleQueueTransient,
+		handlerPause(gs),
 	)
 	if err != nil {
 		log.Fatalf("could not subscribe to pause: %v", err)
 	}
-	fmt.Printf("Queue %v declared and bound!\n", queue.Name)
-
-	gs := gamelogic.NewGameState(username)
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGTERM)
-	
+
 	for {
 		select {
 		case <-done:
 			fmt.Println("Shutting down...")
-			return 
+			return
 		default:
 			words := gamelogic.GetInput()
 			if len(words) == 0 {
-				continue 
+				continue
 			}
 
 			switch words[0] {
@@ -61,10 +62,10 @@ func main() {
 				err := gs.CommandSpawn(words)
 				if err != nil {
 					fmt.Println(err)
-					continue 
+					continue
 				}
 			case "move":
-				_, err := gs.CommandMove(words) 
+				_, err := gs.CommandMove(words)
 				if err != nil {
 					fmt.Println("Move failed")
 				} else {
@@ -78,10 +79,11 @@ func main() {
 				fmt.Println("Spamming not allowed yet!")
 			case "quit":
 				gamelogic.PrintQuit()
-				return 
+				return
 			default:
 				fmt.Println("Unknown command")
 			}
 		}
 	}
 }
+
