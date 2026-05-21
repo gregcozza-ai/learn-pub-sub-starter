@@ -33,20 +33,19 @@ func main() {
 	}
 	defer ch.Close()
 
-	// Declare and bind queue for game logs
-	_, queue, err := pubsub.DeclareAndBind(
+	// Subscribe to game logs using SubscribeGob
+	err = pubsub.SubscribeGob(
 		conn,
 		routing.ExchangePerilTopic,
-		routing.GameLogSlug,
-		routing.GameLogSlug+".*",
+		routing.GameLogSlug,  // Queue name 
+		routing.GameLogSlug+".*",  //Routing key pattern 
 		pubsub.SimpleQueueDurable,
+		handlerLogs(),
 	)
 	if err != nil {
-		log.Fatalf("could not subscribe to pause: %v", err)
+		log.Fatalf("could not subscribe to game logs: %v", err)
 	}
-	fmt.Printf("Queue %v declared and bound!\n", queue.Name)
-
-	gamelogic.PrintServerHelp()
+	fmt.Printf("Subscribed to game logs queue: %s\n", routing.GameLogSlug)
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGTERM)
@@ -67,13 +66,13 @@ func main() {
 				fmt.Println("Publishing paused game state")
 				err = pubsub.PublishJSON(ch, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: true})
 				if err != nil {
-					log.Printf("cound not publish time: %v", err)
+					log.Printf("cound not publish pause: %v", err)
 				}
 			case "resume":
 				fmt.Println("Publishing resusmes game state")
 				err = pubsub.PublishJSON(ch, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: false})
 				if err != nil {
-					log.Printf("could not publish time: %v", err)
+					log.Printf("could not publish resume: %v", err)
 				}
 			case "quit":
 				fmt.Println("Exiting...")

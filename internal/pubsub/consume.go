@@ -3,6 +3,8 @@ package pubsub
 import (
 	"encoding/json"
 	"fmt"
+	"bytes"
+	"encoding/gob"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -65,38 +67,41 @@ func DeclareAndBind(
 	return ch, queue, nil 
 }
 
-func SubscribeJSON[T any](
+// Helper function to share code between SubscribeJSON and SubscribeGob
+func subscribe[T any](
 	conn *amqp.Connection,
 	exchange,
 	queueName,
 	key string,
 	queueType SimpleQueueType,
 	handler func(T) Acktype,
+	unmarshaller func([]byte) (T, error),
 ) error {
 	ch, _, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
 	if err != nil {
-		return fmt.Errorf("could not declare and bind queue: %v", err)
+		return fmt.Errorf("could not declare and bing queue: %v", err)
 	}
 
 	deliveries, err := ch.Consume(
-		queueName,			// queue
-		"",					// comsumer
-		false,				// auto-ack
-		false,				// exclusive
-		false,				// no-local
-		false,				// no-wait
-		nil, 				// args 
+			queueName,			// queue
+			"",					// comsumer
+			false,				// auto-ack
+			false,				// exclusive
+			false,				// no-local
+			false,				// no-wait
+			nil, 				// args 
 	)
 	if err != nil {
-		return fmt.Errorf("could not consume messages: %v", err)
+			return fmt.Errorf("could not consume messages: %v", err)
 	}
-
+	
 	go func() {
+		defer ch.Close()
 		for d := range deliveries {
-			var msg T 
-			if err := json.Unmarshal(d.Body, &msg); err != nil {
+			msg, err := unmarshaller(d.Body)
+			if err != nil {
 				fmt.Printf("could not unmarshal message: %v\n", err)
-				continue 
+				continue
 			}
 
 			ackType := handler(msg)
@@ -116,6 +121,56 @@ func SubscribeJSON[T any](
 			}
 		}
 	}()
-
 	return nil 
+}
+
+func SubscribeJSON[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) Acktype,
+) error {
+	return subscribe(
+		conn,
+		exchange,
+		queueName,
+		key,
+		queueType,
+		handler,
+		func(data []byte) (T, error) {
+			var msg T 
+			if err := json.Unmarshal(data, &msg); err != nil {
+				return msg, err 
+			}
+			return msg, nil 
+		},
+	)
+}
+
+func SubscribeGob[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) Acktype,
+) error {
+	return subscribe(
+		conn,
+		exchange,
+		queueName,
+		key,
+		queueType,
+		handler,
+		func(data []byte) (T, error) {
+			var msg T
+			dec := gob.NewDecoder(bytes.NewBuffer(data))
+			if err := dec.Decode(&msg); err != nil {
+				return msg, err 
+			}
+			return msg, nil 
+		},
+	)
 }
