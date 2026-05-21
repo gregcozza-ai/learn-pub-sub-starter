@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -71,7 +72,7 @@ func main() {
 		routing.WarRecognitionsPrefix, // Durable queue name
 		routing.WarRecognitionsPrefix+".*",
 		pubsub.SimpleQueueDurable, // Durable queue
-		handlerWar(gs),
+		handlerWar(gs, pubCh),
 	)
 	if err != nil {
 		log.Fatalf("could not subscribe to war messages: %v", err)
@@ -135,3 +136,15 @@ func main() {
 	}
 }
 
+func publishGameLog(publishCh *amqp.Channel, username, msg string) error {
+	return pubsub.PublishGob(
+		publishCh,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug+"."+username,
+		routing.GameLog{
+			Username:		username,
+			CurrentTime:	time.Now(),
+			Message:		msg,
+		},
+	)
+}
