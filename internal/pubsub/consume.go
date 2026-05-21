@@ -82,6 +82,11 @@ func subscribe[T any](
 		return fmt.Errorf("could not declare and bing queue: %v", err)
 	}
 
+	// Set prefetch count to 10 to limit messages prefetched at once
+	if err := ch.Qos(10, 0, false); err != nil {
+		return fmt.Errorf("could not set Qos: %v", err)
+	}
+
 	deliveries, err := ch.Consume(
 			queueName,			// queue
 			"",					// comsumer

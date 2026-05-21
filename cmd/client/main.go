@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -125,7 +126,23 @@ func main() {
 			case "help":
 				gamelogic.PrintClientHelp()
 			case "spam":
-				fmt.Println("Spamming not allowed yet!")
+				if len(words) < 2 {
+					fmt.Println("Usage: spam <count>")
+					continue 
+				}
+				count, err := strconv.Atoi(words[1])
+				if err != nil {
+					fmt.Println("Invalid count:", err)
+					continue 
+				}
+				for i := 0; i < count; i++ {
+					msg := gamelogic.GetMaliciousLog()
+					err := publishGameLog(pubCh, username, msg)
+					if err != nil {
+						fmt.Println("Failed to publish log:", err)
+					}
+				}
+				fmt.Printf("Spammed %d logs\n", count)
 			case "quit":
 				gamelogic.PrintQuit()
 				return
